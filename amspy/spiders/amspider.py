@@ -1,18 +1,47 @@
+import re
 import scrapy
+from scrapy.spiders import CrawlSpider, Rule
+from scrapy.linkextractors import LinkExtractor
 from amspy.items import AmspyItem, AmspyItemLoader
 
 
-class AmazonSpider(scrapy.Spider):
+def process_book_links(value):
+    """
+    Processes the individual book links extracted from a top 100 category
+    page.
+    """
+    m = re.search(r'http://www.amazon.com/[^/]+/dp/[0-9A-Z]{10}', value)
+    if m:
+        return m.group()
+
+
+class AmazonSpider(CrawlSpider):
     name = 'amspy'
     allowed_domains = ['amazon.com']
-    start_urls = [
-            'http://www.amazon.com/gp/product/B015UPORGC',
-            # 'http://www.amazon.com/Desert-Hunt-Wolves-Twin-Ranch-ebook/dp/'
-            # 'B010W9HEUW',
-            'http://www.amazon.com/Pacific-Crossing-Notes-Sailors-Coconut-ebook'
-            '/dp/B00RAD0W30']
+    start_urls = ['http://www.amazon.com/gp/bestsellers/digital-text/6190484011/ref=pd_zg_hrsr_kstore_1_4']
 
-    def parse(self, response):
+    rules = (
+            # paginator links
+            Rule(LinkExtractor(
+                restrict_xpaths='//div[@id="zg_paginationWrapper"]/'
+                'ol[@class="zg_pagination"]',
+                allow=r'http://www.amazon.com/Best-Sellers-Kindle-Store')),
+            # book links from each paginated page
+            Rule(LinkExtractor(
+                restrict_xpaths='//div[@id="zg_centerListWrapper"]',
+                allow=r'http://www.amazon.com/[^/]+/dp/[0-9A-Z]{10}.*',
+                process_value=process_book_links),
+                callback='book_parse'), )
+
+    def __init__(self, start=None, *args, **kwargs):
+        super(AmazonSpider, self).__init__(*args, **kwargs)
+        # self.__class__.start_urls = [start]
+        # print self.__class__.start_urls
+
+    def dummy(self, req):
+        print req
+
+    def book_parse(self, response):
         #map Product Details tags to item labels:
         prodDetMap = {
                 'File Size': 'file_size',
@@ -76,3 +105,5 @@ class AmazonSpider(scrapy.Spider):
         #    print "%s: %s" % (key, item[key])
 
         return item
+
+
