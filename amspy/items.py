@@ -11,9 +11,12 @@ from scrapy.loader.processors import Identity, TakeFirst, Join
 from scrapy.loader.processors import Compose, MapCompose
 
 
-class AmspyItem(scrapy.Item):
-    # define the fields for your item here like:
-    # name = scrapy.Field()
+class BookItem(scrapy.Item):
+
+    # use `item_type` to distinguish between individual book pages and top-100
+    # listings
+    category = scrapy.Field()
+    item_type = scrapy.Field()
     asin = scrapy.Field()
     title = scrapy.Field()
     authors = scrapy.Field()
@@ -25,16 +28,17 @@ class AmspyItem(scrapy.Item):
     print_length = scrapy.Field()
     publisher = scrapy.Field()
     pub_date = scrapy.Field()
+    top_100_rank = scrapy.Field()
     rank = scrapy.Field()
 
 
-class AmspyItemLoader(ItemLoader):
+class BookItemLoader(ItemLoader):
 
     default_output_processor = TakeFirst()
 
-    def price_scrub(fmt_price):
-        fmt, price = fmt_price
-        return (fmt.strip(), float(price.replace(u',', u'')))
+    def price_scrub(price):
+        # fmt, price = fmt_price
+        return float(price.replace(u'$', u'').replace(u',', u''))
 
     def rank_scrub(rank_cat):
         rank, cat = rank_cat
@@ -58,7 +62,7 @@ class AmspyItemLoader(ItemLoader):
     print_length_in = MapCompose(lambda k: k.replace(u'pages', u'').strip(),
                                  lambda k: k.replace(u',', u''),
                                  int)
-    price_in = Compose(price_scrub)
-    price_out = Compose(pairs2dict)
+    price_in = MapCompose(price_scrub)
     rank_in = Compose(rank_scrub)
     rank_out = Compose(pairs2dict)
+    top_100_rank_in = Compose(lambda k: int(k[0].strip('.')))
