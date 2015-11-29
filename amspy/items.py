@@ -16,6 +16,7 @@ class BookItem(scrapy.Item):
     # use `item_type` to distinguish between individual book pages and top-100
     # listings
     category = scrapy.Field()
+    catid = scrapy.Field()
     item_type = scrapy.Field()
     asin = scrapy.Field()
     title = scrapy.Field()

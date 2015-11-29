@@ -37,12 +37,13 @@ class AmazonSpider(CrawlSpider):
                 process_value=process_book_links),
                 callback='book_parse'), )
 
-    def __init__(self, catid=None, *args, **kwargs):
+    def __init__(self, catid='', category='', *args, **kwargs):
         self.__class__.start_urls = ['http://www.amazon.com/gp/bestsellers/'
                 'digital-text/{}'.format(catid)]
         super(AmazonSpider, self).__init__(*args, **kwargs)
         self.logger.debug('start_urls: %s', self.__class__.start_urls)
         self.catid = catid
+        self.category=category
 
     def rank_parse(self, response):
         """
@@ -53,7 +54,8 @@ class AmazonSpider(CrawlSpider):
                              'div[@class="zg_itemImmersion"]')
         for t in top:
             il = BookItemLoader(item=BookItem(), response=response)
-            il.add_value('category', self.catid)
+            il.add_value('catid', self.catid)
+            il.add_value('category', self.category)
             il.add_value('item_type', 'top_100')
             # il.add_xpath('top_100_rank',
             #        './/span[@class="zg_rankNumber"]/text()')
@@ -81,7 +83,8 @@ class AmazonSpider(CrawlSpider):
                 'ASIN': 'asin',
         }
         il = BookItemLoader(item=BookItem(), response=response)
-        il.add_value('category', self.catid)
+        il.add_value('catid', self.catid)
+        il.add_value('category', self.category)
         il.add_value('item_type', 'book_page')
         il.add_xpath('title', '//span[@id="productTitle"]/text()')
         v = response.xpath( '//span[@id="acrPopover"]/@title').re(
