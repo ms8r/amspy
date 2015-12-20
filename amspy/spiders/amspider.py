@@ -43,7 +43,7 @@ class AmazonSpider(CrawlSpider):
         super(AmazonSpider, self).__init__(*args, **kwargs)
         self.logger.debug('start_urls: %s', self.__class__.start_urls)
         self.catid = catid
-        self.category=category
+        self.category = category
 
     def rank_parse(self, response):
         """
