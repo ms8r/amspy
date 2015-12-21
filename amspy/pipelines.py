@@ -7,7 +7,7 @@ import json
 import pandas as pd
 
 
-class AmspyPipeline(object):
+class Top100Pipeline(object):
 
     def open_spider(self, spider):
         self.top_100_foo = open('top_100_{}.jl'.format(spider.category), 'w')
@@ -40,11 +40,9 @@ class AmspyPipeline(object):
                          sep='\t', index=False)
 
     def process_item(self, item, spider):
-
         line = json.dumps(dict(item)) + '\n'
         if item['item_type'] == 'top_100':
             self.top_100_foo.write(line)
         elif item['item_type'] == 'book_page':
             self.books_foo.write(line)
-
         return item

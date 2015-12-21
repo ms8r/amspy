@@ -31,6 +31,7 @@ class BookItem(scrapy.Item):
     pub_date = scrapy.Field()
     top_100_rank = scrapy.Field()
     rank = scrapy.Field()
+    also_bought = scrapy.Field()
 
 
 class BookItemLoader(ItemLoader):

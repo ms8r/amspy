@@ -1,78 +1,29 @@
 import re
 import scrapy
-from scrapy.spiders import CrawlSpider, Rule
+from scrapy.spiders import Spider, CrawlSpider, Rule
 from scrapy.linkextractors import LinkExtractor
 from amspy.items import BookItem, BookItemLoader
+import amspy.pipelines
 
 
 def process_book_links(value):
     """
-    Processes the individual book links extracted from a top 100 category
-    page.
+    Filters to book links and strips off anything after asin.
     """
     m = re.search(r'http://www.amazon.com/[^/]+/dp/[0-9A-Z]{10}', value)
     if m:
         return m.group()
 
 
-class AmazonSpider(CrawlSpider):
-    name = 'amspy'
-    allowed_domains = ['amazon.com']
-    # start_urls = ['http://www.amazon.com/gp/bestsellers/digital-text/6190484011/ref=pd_zg_hrsr_kstore_1_4']
-
-    rules = (
-            # paginator links
-            Rule(LinkExtractor(
-                restrict_xpaths='//div[@id="zg_paginationWrapper"]/'
-                'ol[@class="zg_pagination"]',
-                # allow=r'http://www.amazon.com/Best-Sellers-Kindle-Store'
-                ),
-                follow=True,
-                callback='rank_parse'
-                ),
-            # book links from each paginated page
-            Rule(LinkExtractor(
-                restrict_xpaths='//div[@id="zg_centerListWrapper"]',
-                allow=r'http://www.amazon.com/[^/]+/dp/[0-9A-Z]{10}.*',
-                process_value=process_book_links),
-                callback='book_parse'), )
-
-    def __init__(self, catid='', category='', *args, **kwargs):
-        self.__class__.start_urls = ['http://www.amazon.com/gp/bestsellers/'
-                'digital-text/{}'.format(catid)]
-        super(AmazonSpider, self).__init__(*args, **kwargs)
-        self.logger.debug('start_urls: %s', self.__class__.start_urls)
-        self.catid = catid
-        self.category = category
-
-    def rank_parse(self, response):
-        """
-        Parses a "Top 100" overview page and scrapes title segement of the URL,
-        ASIN and rank into item
-        """
-        top = response.xpath('//div[@id="zg_centerListWrapper"]/'
-                             'div[@class="zg_itemImmersion"]')
-        for t in top:
-            il = BookItemLoader(item=BookItem(), response=response)
-            il.add_value('catid', self.catid)
-            il.add_value('category', self.category)
-            il.add_value('item_type', 'top_100')
-            # il.add_xpath('top_100_rank',
-            #        './/span[@class="zg_rankNumber"]/text()')
-            v = t.xpath('.//span[@class="zg_rankNumber"]/text()').extract()
-            il.add_value('top_100_rank', v)
-            v = t.xpath('.//div[@class="zg_title"]/a/text()').extract()
-            il.add_value('title', v)
-            v = t.xpath('.//div[@class="zg_title"]/a/@href').re_first(
-                    r'\s*http://www.amazon.com/[^/]*/dp/([A-Z0-9]{10})')
-            il.add_value('asin', v)
-
-            item = il.load_item()
-            yield item
+class BookParser(object):
+    """
+    Mixin class that provides `book_parse` method for parsing an Amazon eBook
+    product page.
+    """
 
     def book_parse(self, response):
         """
-        Parses individual book pages into AmspyItem
+        Parses individual book pages into BookItem
         """
         #map Product Details tags to item labels:
         prodDetMap = {
@@ -112,7 +63,6 @@ class AmazonSpider(CrawlSpider):
             il.add_value('price', price)
             break
 
-
         # Product Details
         prodDetSel = response.xpath(
                 '//table[@id="productDetailsTable"]'
@@ -143,6 +93,85 @@ class AmazonSpider(CrawlSpider):
 
         item = il.load_item()
 
-        return item
+        yield item
 
+
+class Top100Spider(BookParser, CrawlSpider):
+    """
+    Crawls top 100 books for a given catergory and retrieves their overall
+    ranks.
+    """
+    name = 'Top100Spy'
+
+    custom_settings = {
+            'ITEM_PIPELINES': {'amspy.pipelines.Top100Pipeline': 300}}
+
+    rules = (
+            # paginator links
+            Rule(LinkExtractor(
+                restrict_xpaths='//div[@id="zg_paginationWrapper"]/'
+                'ol[@class="zg_pagination"]',
+                # allow=r'http://www.amazon.com/Best-Sellers-Kindle-Store'
+                ),
+                follow=True,
+                callback='rank_parse'
+                ),
+            # book links from each paginated page
+            Rule(LinkExtractor(
+                restrict_xpaths='//div[@id="zg_centerListWrapper"]',
+                allow=r'http://www.amazon.com/[^/]+/dp/[0-9A-Z]{10}.*',
+                process_value=process_book_links),
+                callback='book_parse'), )
+
+    def __init__(self, catid='', category='', *args, **kwargs):
+        self.__class__.start_urls = ['http://www.amazon.com/gp/bestsellers/'
+                'digital-text/{}'.format(catid)]
+        super(Top100Spider, self).__init__(*args, **kwargs)
+        self.logger.debug('start_urls: %s', self.__class__.start_urls)
+        self.catid = catid
+        self.category = category
+
+
+    def rank_parse(self, response):
+        """
+        Parses a "Top 100" overview page and scrapes title segement of the URL,
+        ASIN and rank into item
+        """
+        top = response.xpath('//div[@id="zg_centerListWrapper"]/'
+                             'div[@class="zg_itemImmersion"]')
+        for t in top:
+            il = BookItemLoader(item=BookItem(), response=response)
+            il.add_value('catid', self.catid)
+            il.add_value('category', self.category)
+            il.add_value('item_type', 'top_100')
+            # il.add_xpath('top_100_rank',
+            #        './/span[@class="zg_rankNumber"]/text()')
+            v = t.xpath('.//span[@class="zg_rankNumber"]/text()').extract()
+            il.add_value('top_100_rank', v)
+            v = t.xpath('.//div[@class="zg_title"]/a/text()').extract()
+            il.add_value('title', v)
+            v = t.xpath('.//div[@class="zg_title"]/a/@href').re_first(
+                    r'\s*http://www.amazon.com/[^/]*/dp/([A-Z0-9]{10})')
+            il.add_value('asin', v)
+
+            item = il.load_item()
+            yield item
+
+
+class AlsoBoughtSpider(BookParser, CrawlSpider):
+    """
+    Will scrape "also bought" titles for each book page in `start_urls`.
+    """
+    name = 'AlsoSpy'
+
+    rules = (
+            # "also bought" links
+            Rule(LinkExtractor(
+                restrict_xpaths='//div[@class="a-carousel-viewport"]/ol/li',
+                allow=re.compile(
+                    r'http://www.amazon.com/[^/]*/dp/[0-9A-Z]{10}'),
+                unique=True,
+                process_value=process_book_links),
+                callback='book_parse'),
+            )
 
