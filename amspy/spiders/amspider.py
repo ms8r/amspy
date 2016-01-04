@@ -91,6 +91,22 @@ class BookParser(object):
                     'span[@class="zg_hrsr_ladder"]/b/a/text()').extract()
             il.add_value('rank', (r, ' > '.join(category)))
 
+        # also boughts:
+        le = LinkExtractor(
+                restrict_xpaths='//div[@class="a-carousel-viewport"]/ol/li',
+                allow=re.compile(
+                    r'http://www.amazon.com/[^/]*/dp/[0-9A-Z]{10}'),
+                unique=True,
+                process_value=process_book_links)
+        ab_url_re = re.compile(
+                r'http://www\.amazon\.com/(?P<title>[^/]+)/dp/'
+                '(?P<asin>[0-9A-Z]{10})')
+        for link in le.extract_links(response):
+            rec = {}
+            rec['url'] = link.url
+            rec['title_str'], rec['asin'] = ab_url_re.match(link.url).groups()
+            il.add_value('also_boughts', rec)
+
         item = il.load_item()
 
         yield item
@@ -99,7 +115,12 @@ class BookParser(object):
 class Top100Spider(BookParser, CrawlSpider):
     """
     Crawls top 100 books for a given catergory and retrieves their overall
-    ranks.
+    ranks. Arguments to be specified via -a command line option:
+
+        catid:      10-digit category identifier
+
+        category:   descriptive text for category (used to name output files)
+
     """
     name = 'Top100Spy'
 
@@ -124,6 +145,12 @@ class Top100Spider(BookParser, CrawlSpider):
                 callback='book_parse'), )
 
     def __init__(self, catid='', category='', *args, **kwargs):
+        """
+        `catid` and `category` to be specified when calling spider via -a
+        option. `catid` is the 10-digit number in the Amazon URL of a
+        category's top 100 listing (used here to construct the URL). `category`
+        is a decriptive string used to name output files.
+        """
         self.__class__.start_urls = ['http://www.amazon.com/gp/bestsellers/'
                 'digital-text/{}'.format(catid)]
         super(Top100Spider, self).__init__(*args, **kwargs)

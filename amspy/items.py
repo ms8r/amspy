@@ -31,7 +31,7 @@ class BookItem(scrapy.Item):
     pub_date = scrapy.Field()
     top_100_rank = scrapy.Field()
     rank = scrapy.Field()
-    also_bought = scrapy.Field()
+    also_boughts = scrapy.Field()
 
 
 class BookItemLoader(ItemLoader):
@@ -66,5 +66,8 @@ class BookItemLoader(ItemLoader):
                                  int)
     price_in = MapCompose(price_scrub)
     rank_in = Compose(rank_scrub)
+
     rank_out = Compose(pairs2dict)
+    also_boughts_in = Identity()
+    also_boughts_out = Identity()
     top_100_rank_in = Compose(lambda k: int(k[0].strip('.')))
