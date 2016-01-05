@@ -1,5 +1,6 @@
 import re
 import scrapy
+from scrapy.http import Request
 from scrapy.spiders import Spider, CrawlSpider, Rule
 from scrapy.linkextractors import LinkExtractor
 from amspy.items import BookItem, BookItemLoader
@@ -13,6 +14,24 @@ def process_book_links(value):
     m = re.search(r'http://www.amazon.com/[^/]+/dp/[0-9A-Z]{10}', value)
     if m:
         return m.group()
+
+
+def read_titles(fo):
+    """
+    Reads white space separated list of ASIN, path pairs from `fo` (file like)
+    and returns a list of Amazon ebook URLs. Ignores blank lines and lines
+    starting with '#'.
+    """
+    out = []
+    for r in fo:
+        if not r.strip() or r.lstrip().startswith('#'):
+            continue
+        asin, tstring = r.strip().split()
+        url = 'http://www.amazon.com/{title}/dp/{asin}'.format(title=tstring,
+                asin=asin)
+        out.append(url)
+
+    return out
 
 
 class BookParser(object):
@@ -34,8 +53,10 @@ class BookParser(object):
                 'ASIN': 'asin',
         }
         il = BookItemLoader(item=BookItem(), response=response)
-        il.add_value('catid', self.catid)
-        il.add_value('category', self.category)
+        if hasattr(self, 'catid'):
+            il.add_value('catid', self.catid)
+        if hasattr(self, 'category'):
+            il.add_value('category', self.category)
         il.add_value('item_type', 'book_page')
         il.add_xpath('title', '//span[@id="productTitle"]/text()')
         v = response.xpath( '//span[@id="acrPopover"]/@title').re(
@@ -110,6 +131,34 @@ class BookParser(object):
         item = il.load_item()
 
         yield item
+
+
+class BasicBookSpider(BookParser, Spider):
+    """
+    Basic book page scraper. Either scrapes a single page for which
+
+    * ASIN and title string (as used in Amazon URL) are specified as `-a`
+      command line parameters (`-a asin=... -a title=...`), or
+    * a file with white space separated ASIN, title string records is provided
+      (via `-a infile=...`)
+    """
+    name = 'BasicBookSpy'
+
+    def __init__(self, asin='', title='', infile='', *args, **kwargs):
+        if asin and title:
+            self.__class__.start_urls = [
+                    'http://www.amazon.com/{title}/dp/{asin}'.format(
+                        title=title, asin=asin)]
+        else:
+            with open(infile, 'r') as foi:
+                self.__class__.start_urls = read_titles(foi)
+        super(BasicBookSpider, self).__init__(*args, **kwargs)
+        self.logger.debug('start_urls: %s', self.__class__.start_urls)
+
+    # overwrite `make_requests_from_url(url)` to specify `book_parse` as
+    # callback:
+    def make_requests_from_url(self, url):
+        return Request(url, self.book_parse)
 
 
 class Top100Spider(BookParser, CrawlSpider):
