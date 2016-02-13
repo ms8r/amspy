@@ -59,6 +59,8 @@ class BookParser(object):
             il.add_value('category', self.category)
         il.add_value('item_type', 'book_page')
         il.add_xpath('title', '//span[@id="productTitle"]/text()')
+        il.add_xpath('authors', '//div[@id="byline"]/span[contains(@class,'
+                '"author")]//a[contains(@class, "contributorNameID")]/text()')
         v = response.xpath( '//span[@id="acrPopover"]/@title').re(
                 r'([0-5][^\s]+)\s+out')
         il.add_value('avrg_rating', v)
@@ -130,7 +132,7 @@ class BookParser(object):
 
         item = il.load_item()
 
-        yield item
+        return item
 
 
 class BasicBookSpider(BookParser, Spider):
@@ -234,9 +236,21 @@ class Top100Spider(BookParser, CrawlSpider):
             yield item
 
 
-class AlsoBoughtSpider(BookParser, CrawlSpider):
+# class AlsoBoughtSpider(BookParser, CrawlSpider):
+class AlsoBoughtSpider(CrawlSpider, BookParser):
     """
     Will scrape "also bought" titles for each book page in `start_urls`.
+
+    `start_urls` are determined from
+
+    * ASIN and title string (as used in Amazon URL) are specified as `-a`
+      command line parameters (`-a asin=... -a title=...`), or
+    * a file with white space separated ASIN, title string records is provided
+      (via `-a infile=...`)
+
+    Maximum depth to with to follow also-boughts should be defined by
+    `-s DEPTH_LIMIT=<number> when calling the spider (otherwise DEPTH_LIMIT value
+    in settings.py will be applied).
     """
     name = 'AlsoSpy'
 
@@ -245,9 +259,31 @@ class AlsoBoughtSpider(BookParser, CrawlSpider):
             Rule(LinkExtractor(
                 restrict_xpaths='//div[@class="a-carousel-viewport"]/ol/li',
                 allow=re.compile(
-                    r'http://www.amazon.com/[^/]*/dp/[0-9A-Z]{10}'),
+                   r'http://www.amazon.com/[^/]*/dp/[0-9A-Z]{10}'),
                 unique=True,
-                process_value=process_book_links),
-                callback='book_parse'),
+                process_value=process_book_links,
+                ),
+                follow=True,
+                callback='book_parse',
+                ),
             )
 
+    def __init__(self, asin='', title='', infile='', *args, **kwargs):
+        if asin and title:
+            self.__class__.start_urls = [
+                    'http://www.amazon.com/{title}/dp/{asin}'.format(
+                        title=title, asin=asin)]
+        else:
+            with open(infile, 'r') as foi:
+                self.__class__.start_urls = read_titles(foi)
+        super(AlsoBoughtSpider, self).__init__(*args, **kwargs)
+        self.logger.debug('start_urls: %s', self.__class__.start_urls)
+
+    # overwrite `make_requests_from_url(url)` to specify `book_parse` as
+    # callback:
+    # def make_requests_from_url(self, url):
+    #    return Request(url, self.book_parse)
+
+    # overwrite `parse_start_url`:
+    def pasre_start_url(self, repsonse):
+       return self.book_parse(self, response)
