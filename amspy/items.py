@@ -32,6 +32,7 @@ class BookItem(scrapy.Item):
     top_100_rank = scrapy.Field()
     rank = scrapy.Field()
     also_boughts = scrapy.Field()
+    url = scrapy.Field()
 
 
 class BookItemLoader(ItemLoader):
@@ -46,13 +47,17 @@ class BookItemLoader(ItemLoader):
         rank, cat = rank_cat
         return (cat.strip(), int(rank.replace(u',', u'')))
 
+    def authors_scrub(authors):
+        kill = ['Visit Amazon', 'search results', 'Learn about']
+        return [a for a in authors if not [k for k in kill if k in a]]
+
     def pairs2dict(pairs):
         """
         Turns a list with consequtive key, value entries into a dict.
         """
         return dict(zip(pairs[::2], pairs[1::2]))
 
-    authors_out = Identity()
+    authors_out = Compose(authors_scrub)
     price_in = MapCompose(float)
     num_reviews_in = MapCompose(lambda k: k.replace(u',', u''), int)
     avrg_rating_in = MapCompose(float)

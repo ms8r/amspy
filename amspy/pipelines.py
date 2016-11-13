@@ -10,8 +10,9 @@ import pandas as pd
 class Top100Pipeline(object):
 
     def open_spider(self, spider):
-        self.top_100_foo = open('top_100_{}.jl'.format(spider.category), 'w')
-        self.books_foo = open('books_{}.jl'.format(spider.category), 'w')
+        suffix = spider.category if hasattr(spider, 'category') else 'mcats'
+        self.top_100_foo = open('top_100_{}.jl'.format(suffix), 'w')
+        self.books_foo = open('books_{}.jl'.format(suffix), 'w')
 
     def close_spider(self, spider):
         self.top_100_foo.close()
@@ -28,15 +29,16 @@ class Top100Pipeline(object):
             out = pd.DataFrame(out).set_index('asin')
             return out
 
-        ranks = make_df('top_100_{}.jl'.format(spider.category))
-        books = make_df('books_{}.jl'.format(spider.category))
+        suffix = spider.category if hasattr(spider, 'category') else 'mcats'
+        ranks = make_df('top_100_{}.jl'.format(suffix))
+        books = make_df('books_{}.jl'.format(suffix))
         books['kindle_rank'] = books['rank'].map(
                 lambda k: k['Paid in Kindle Store'])
         rank_comp = ranks[['catid', 'category', 'title',
                 'top_100_rank']].join(books['kindle_rank'])
         rank_comp.sort_index(by='top_100_rank', inplace=True)
         rank_comp.reset_index(inplace=True)
-        rank_comp.to_csv('rank_comp_{}.tsv'.format(spider.category),
+        rank_comp.to_csv('rank_comp_{}.tsv'.format(suffix),
                          sep='\t', index=False)
 
     def process_item(self, item, spider):

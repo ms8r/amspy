@@ -1,3 +1,13 @@
 *.pyc
 *~
+*.json
+*.jl
+*.txt
+*.ods
+*.png
+*.csv
+*.tsv
+*.log
+*.gnumeric
 non-git
+.ipynb_checkpoints
