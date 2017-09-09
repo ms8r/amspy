@@ -1,5 +1,9 @@
 import re
-from urlparse import urlparse
+try:
+    from urlparse import urlparse
+except ImportError:
+    from urllib.parse import urlparse
+
 import scrapy
 from scrapy.http import Request
 from scrapy.spiders import Spider, CrawlSpider, Rule
@@ -56,7 +60,7 @@ class BookParser(object):
             il.add_value('category', self.category)
         il.add_value('item_type', 'book_page')
         il.add_value('url', response.url)
-        il.add_xpath('title', '//span[@id="productTitle"]/text()')
+        il.add_xpath('title', '//span[@id="ebooksProductTitle"]/text()')
         il.add_xpath('authors', '//div[@id="byline"]/span[contains(@class,'
                 '"author")]//a/text()')
         v = response.xpath( '//span[@id="acrPopover"]/@title').re(

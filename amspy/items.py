@@ -75,4 +75,4 @@ class BookItemLoader(ItemLoader):
     rank_out = Compose(pairs2dict)
     also_boughts_in = Identity()
     also_boughts_out = Identity()
-    top_100_rank_in = Compose(lambda k: int(k[0].strip('.')))
+    top_100_rank_in = Compose(lambda k: int(k[0].strip().strip('.')))
